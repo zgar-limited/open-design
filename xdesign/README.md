@@ -32,8 +32,24 @@ Everything after the script path is forwarded to `tools-pack`, so the usual
 flags apply (`--namespace`, `--app-version`, `--dir`, `--signed`, …). The
 produced `.app`/`.dmg` install as **xDesign** with the xDesign icon.
 
+### Brand env must be set for every lifecycle command
+
+The brand is not baked at build time — `tools-pack` re-derives the product name,
+app id, icon, and artifact **paths** from `OD_PRODUCT_NAME` / `OD_APP_ID` /
+`OD_MAC_ICON` on every invocation. So `install`, `start`, `stop`, `uninstall`,
+and `cleanup` on a branded build must run through the wrapper too (or set the
+same env), otherwise they look for the wrong artifact name (e.g. it hunts for
+`Open Design-<ns>.dmg` instead of `xDesign-<ns>.dmg` and fails).
+
+```bash
+node --experimental-strip-types xdesign/scripts/pack.ts mac install  --namespace xdesign-verify
+node --experimental-strip-types xdesign/scripts/pack.ts mac start   --namespace xdesign-verify
+node --experimental-strip-types xdesign/scripts/pack.ts mac stop    --namespace xdesign-verify
+node --experimental-strip-types xdesign/scripts/pack.ts mac uninstall --namespace xdesign-verify
+```
+
 To build unbranded (upstream Open Design), call `pnpm tools-pack` directly — the
-wrapper is never required.
+wrapper is only required for branded (fork) builds and their lifecycle.
 
 ## Replacing the placeholder icon
 

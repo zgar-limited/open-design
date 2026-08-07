@@ -17,6 +17,20 @@ export type MacInstallIdentity = {
   systemAppBundleName: string;
 };
 
+/**
+ * Product name stamped into mac build-artifact filenames (dmg/zip/payload) and
+ * the electron-builder `artifactName`. A branded build names its artifacts after
+ * the brand; an unbranded build keeps the upstream PRODUCT_NAME so upstream
+ * artifact naming is byte-for-byte unchanged. This is deliberately distinct from
+ * the install-identity productName — that carries the channel suffix ("Open
+ * Design Beta") for unbranded channel builds, while artifact filenames do not.
+ * Centralized so builder.ts, artifacts.ts, and paths.ts cannot drift apart
+ * (a branded build's produced dmg must match the path install/finalize expect).
+ */
+export function macArtifactProductName(config: Pick<ToolPackConfig, "brand">): string {
+  return config.brand?.productName ?? PRODUCT_NAME;
+}
+
 function sanitizeNamespace(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]+/g, "-");
 }

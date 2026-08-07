@@ -138,4 +138,19 @@ describe("resolveMacInstallIdentity brand overlay", () => {
     };
     expect(resolveMacInstallIdentity(config).productName).toBe("xDesign");
   });
+
+  it("brands the dmg/zip/payload artifact filenames (builder↔artifacts↔paths stay consistent)", () => {
+    // The electron-builder artifactName, the artifacts.ts sourcePath lookup, and
+    // the paths.ts destination must all derive the same name — otherwise a
+    // branded `--to dmg` build fails with "no dmg artifact produced". This is the
+    // witness that they share macArtifactProductName.
+    const config = {
+      ...makeConfig("/work", "xdesign-local"),
+      brand: { productName: "xDesign", appId: "io.xdesign.desktop" },
+    };
+    const paths = resolveMacPaths(config);
+    expect(paths.dmgPath).toMatch(/xDesign-xdesign-local\.dmg$/);
+    expect(paths.zipPath).toMatch(/xDesign-xdesign-local\.zip$/);
+    expect(paths.payloadZipPath).toMatch(/xDesign-xdesign-local-payload\.zip$/);
+  });
 });

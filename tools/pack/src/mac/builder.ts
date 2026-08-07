@@ -19,7 +19,7 @@ import {
   WEB_STANDALONE_RESOURCE_NAME,
 } from "./constants.js";
 import { pathExists } from "./fs.js";
-import { resolveMacInstallIdentity } from "./identity.js";
+import { macArtifactProductName, resolveMacInstallIdentity } from "./identity.js";
 import { readPackagedVersion } from "./manifest.js";
 import { sanitizeNamespace } from "./paths.js";
 import type { ElectronBuilderTarget, MacBuildOutput, MacPaths } from "./types.js";
@@ -98,7 +98,7 @@ export async function runElectronBuilder(
   // unbranded, both fall back to the upstream PRODUCT_NAME / mac icon so
   // upstream artifact naming is byte-for-byte unchanged.
   const macIcon = config.brand?.macIcon ?? macResources.icon;
-  const displayName = config.brand?.productName ?? PRODUCT_NAME;
+  const displayName = macArtifactProductName(config);
   const builderConfig = {
     appId: identity.appId,
     artifactName: `${displayName}-${namespaceToken}.\${ext}`,
