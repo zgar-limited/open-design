@@ -21,7 +21,12 @@
 export type ToolPackBrand = {
   /** Display product name, e.g. "xDesign". Drives productName, bundle name, DMG title. */
   productName: string;
-  /** Reverse-DNS app id, e.g. "io.xdesign.desktop". Defaults to the upstream stable appId when omitted. */
+  /**
+   * Reverse-DNS app id, e.g. "io.xdesign.desktop". Required at identity-resolution
+   * time when productName is set — a branded build must not reuse the upstream
+   * Open Design appId (install collision); resolveMacInstallIdentity throws if it
+   * is absent.
+   */
   appId?: string;
   /** Absolute or cwd-relative path to a macOS `.icns` icon. When omitted, the upstream mac icon is used. */
   macIcon?: string;

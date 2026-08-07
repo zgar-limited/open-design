@@ -123,9 +123,9 @@ describe("resolveMacInstallIdentity brand overlay", () => {
     expect(resolveMacPaths(config).appPath).toMatch(/xDesign\.app$/);
   });
 
-  it("falls back to the canonical stable appId when brand omits appId", () => {
+  it("throws when a brand omits appId (would collide with the upstream identity)", () => {
     const config = { ...makeConfig("/work", "xdesign-local"), brand: { productName: "xDesign" } };
-    expect(resolveMacInstallIdentity(config).appId).toBe("io.open-design.desktop");
+    expect(() => resolveMacInstallIdentity(config)).toThrow(/OD_APP_ID/);
   });
 
   it("brand wins over a derived release channel for productName", () => {

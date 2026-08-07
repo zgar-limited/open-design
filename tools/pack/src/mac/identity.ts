@@ -30,13 +30,29 @@ export function resolveMacInstallIdentity(
   // A fork brand overlay is an app identity of its own — it takes precedence
   // over any channel derived from version/namespace, because a branded build
   // (e.g. xDesign) must never leak the upstream "Open Design <Channel>" name
-  // even when it carries a channel-shaped version.
-  const branded = config.brand != null;
-  const channelIdentity = branded
-    ? { appId: config.brand?.appId ?? "io.open-design.desktop", productName: config.brand!.productName }
-    : channel == null
-      ? { appId: "io.open-design.desktop", productName: PRODUCT_NAME }
-      : releaseInstallIdentity(channel);
+  // even when it carries a channel-shaped version. A distinct appId is
+  // mandatory: falling back to the upstream stable id would collide with an
+  // Open Design install on the same machine (macOS LaunchServices overwrite).
+  const brand = config.brand;
+  let channelIdentity: { appId: string; productName: string };
+  let branded: boolean;
+  if (brand != null) {
+    if (brand.appId == null) {
+      throw new Error(
+        "tools-pack: OD_PRODUCT_NAME is set but OD_APP_ID is missing. A branded "
+          + "build must declare its own reverse-DNS app id (e.g. io.xdesign.desktop) "
+          + "so it cannot collide with the upstream Open Design identity.",
+      );
+    }
+    channelIdentity = { appId: brand.appId, productName: brand.productName };
+    branded = true;
+  } else if (channel == null) {
+    channelIdentity = { appId: "io.open-design.desktop", productName: PRODUCT_NAME };
+    branded = false;
+  } else {
+    channelIdentity = releaseInstallIdentity(channel);
+    branded = false;
+  }
   const publicAppBundleName = `${channelIdentity.productName}.app`;
   // Branded and channel builds install under the stable public bundle name; only
   // unbranded local builds carry the namespace-suffixed bundle name.
