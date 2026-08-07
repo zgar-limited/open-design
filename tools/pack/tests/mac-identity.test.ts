@@ -104,3 +104,38 @@ describe("resolveMacInstallIdentity", () => {
     });
   });
 });
+
+describe("resolveMacInstallIdentity brand overlay", () => {
+  it("uses branded productName/appId and drops the namespace suffix from the bundle name", () => {
+    const config = {
+      ...makeConfig("/work", "xdesign-local"),
+      brand: { productName: "xDesign", appId: "io.xdesign.desktop", macIcon: "/x/icon.icns" },
+    };
+
+    expect(resolveMacInstallIdentity(config)).toEqual({
+      appId: "io.xdesign.desktop",
+      executableName: "xDesign",
+      installerTitle: "xDesign",
+      productName: "xDesign",
+      publicAppBundleName: "xDesign.app",
+      systemAppBundleName: "xDesign.app",
+    });
+    expect(resolveMacPaths(config).appPath).toMatch(/xDesign\.app$/);
+  });
+
+  it("falls back to the canonical stable appId when brand omits appId", () => {
+    const config = { ...makeConfig("/work", "xdesign-local"), brand: { productName: "xDesign" } };
+    expect(resolveMacInstallIdentity(config).appId).toBe("io.open-design.desktop");
+  });
+
+  it("brand wins over a derived release channel for productName", () => {
+    // A branded build carrying a beta-ish version still ships under the brand
+    // name — brand is a fork identity, not a channel.
+    const config = {
+      ...makeConfig("/work", "release-beta"),
+      appVersion: "0.8.0-beta.1",
+      brand: { productName: "xDesign", appId: "io.xdesign.desktop" },
+    };
+    expect(resolveMacInstallIdentity(config).productName).toBe("xDesign");
+  });
+});
