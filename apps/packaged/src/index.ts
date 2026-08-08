@@ -23,7 +23,7 @@ import {
 } from "@open-design/desktop/main";
 import { readProcessStamp } from "@open-design/platform";
 import { join } from "node:path";
-import { app, dialog } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 
 import { readPackagedConfig } from "./config.js";
 import {
@@ -61,6 +61,7 @@ import { packagedEntryUrl, registerOdProtocol } from "./protocol.js";
 import { startPackagedSidecars } from "./sidecars.js";
 import { reportStartupFailure, resolveStartupDistinctId } from "./startup-telemetry.js";
 import { resolvePackagedWindowTitle } from "./window-title.js";
+import { ensureFeishuAdmission, startFeishuRevalidation } from "./feishu/gate.js";
 import { syncWindowsUninstallDisplayVersion } from "./windows-lifecycle.js";
 
 let packagedLogger: PackagedDesktopLogger | null = null;
@@ -298,6 +299,12 @@ async function main(): Promise<void> {
   // lack of a target should surface as the protocol layer's structured 503.
   registerOdProtocol(() => sidecars.currentWebUrl());
 
+  // xDesign fork: Feishu app-level admission gate. Blocks boot on a Feishu login
+  // window until an in-tenant user signs in (cached token short-circuits it on
+  // relaunch). No-op when feishuAdmission is off (upstream builds unchanged).
+  const feishuTokenPath = join(paths.namespaceRoot, "runtime", "feishu-token.json");
+  await ensureFeishuAdmission({ config: activeConfig, tokenPath: feishuTokenPath, splashWindow: splash.window });
+
   const { runDesktopMain } = await import("@open-design/desktop/main");
   await runDesktopMain(runtime, {
     splashWindow: splash.window,
@@ -355,6 +362,23 @@ async function main(): Promise<void> {
       launcherRuntimePath: launcherRuntime.launcherPaths.runtimePath,
     },
   });
+
+  // xDesign fork: periodically re-validate admission while the app runs. If the
+  // cached token can no longer refresh (revoked / ex-employee), hide the
+  // workspace and re-run the gate so the user is locked back out in-place.
+  startFeishuRevalidation(
+    { config: activeConfig, tokenPath: feishuTokenPath, splashWindow: splash.window },
+    () => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (window !== splash.window && !window.isDestroyed()) window.hide();
+      }
+      void ensureFeishuAdmission({ config: activeConfig, tokenPath: feishuTokenPath, splashWindow: splash.window })
+        .catch((error: unknown) => {
+          packagedLogger?.error("feishu re-admission failed", { error });
+          app.exit(1);
+        });
+    },
+  );
 }
 
 void main().catch(async (error: unknown) => {
