@@ -27,6 +27,7 @@ async function buildWorkspaceArtifacts(config: ToolPackConfig): Promise<void> {
   try {
     await runPnpm(config, ["--filter", "@open-design/web", "build"], {
       OD_WEB_OUTPUT_MODE: config.webOutputMode,
+      ...(config.feishuAdmission ? { NEXT_PUBLIC_OD_FEISHU_ADMISSION: "true" } : {}),
     });
     await runPnpm(config, ["--filter", "@open-design/web", "build:sidecar"]);
     // Inject chunk IDs + upload browser sourcemaps to PostHog, then strip
