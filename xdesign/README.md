@@ -138,7 +138,7 @@ app's values:
 
 ```bash
 cp xdesign/brand/feishu.example.json xdesign/brand/feishu.json
-# edit xdesign/brand/feishu.json → appId, appSecret, tenantId (baseUrl defaults
+# edit xdesign/brand/feishu.json → appId, appSecret, tenantKey (baseUrl defaults
 # to https://open.feishu.cn; use https://open.larksuite.com for Lark international)
 ```
 

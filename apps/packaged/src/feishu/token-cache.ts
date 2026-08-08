@@ -11,11 +11,11 @@ import { dirname } from "node:path";
 
 import type { FeishuTokens, FeishuUserInfo } from "./oauth.js";
 
-/** Minimal view of Electron `safeStorage` — accepts a base64 string on decrypt. */
+/** Minimal view of Electron `safeStorage`. */
 export type SafeStorage = {
   isEncryptionAvailable(): boolean;
   encryptString(plain: string): Buffer;
-  decryptString(encrypted: Buffer | string): string;
+  decryptString(encrypted: Buffer): string;
 };
 
 export type CachedFeishuToken = {
@@ -79,8 +79,10 @@ export async function loadToken(
   if (raw.length === 0) return null;
   // A decrypt/parse failure means the cache is unusable (corrupted, migrated
   // OS keychain, etc.); treat it as logged out rather than blocking the boot.
+  // Electron's safeStorage round-trips bytes: we stored base64(encrypt(plain)),
+  // so decode back to the encrypted Buffer before handing it to decryptString.
   try {
-    const plain = safeStorage.decryptString(raw);
+    const plain = safeStorage.decryptString(Buffer.from(raw, "base64"));
     return JSON.parse(plain) as CachedFeishuToken;
   } catch {
     return null;

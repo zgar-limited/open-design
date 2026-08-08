@@ -14,12 +14,13 @@ import {
   type SafeStorage,
 } from "../../src/feishu/token-cache.js";
 
-// Identity-backed fake safeStorage (encrypt -> utf8 Buffer; decrypt accepts the
-// base64 form saveToken writes). The real Electron safeStorage has the same shape.
+// Identity-backed fake safeStorage: encrypt returns the plain utf8 bytes, and
+// decrypt reverses the base64 form saveToken writes. The real Electron
+// safeStorage has the same Buffer round-trip shape.
 const fakeSafeStorage: SafeStorage = {
   isEncryptionAvailable: () => true,
   encryptString: (plain) => Buffer.from(plain, "utf8"),
-  decryptString: (encrypted) => Buffer.from(encrypted as string, "base64").toString("utf8"),
+  decryptString: (encrypted) => encrypted.toString("utf8"),
 };
 
 const token = cacheTokenFromTokens(

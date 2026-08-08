@@ -132,6 +132,6 @@ export async function fetchUserInfo(creds: FeishuCreds, userAccessToken: string)
 }
 
 /** Whole-tenant admission: the user's tenant_key must match the configured tenant. */
-export function isAllowedTenant(tenantKey: string, allowedTenantId: string): boolean {
-  return tenantKey === allowedTenantId;
+export function isAllowedTenant(tenantKey: string, allowedTenantKey: string): boolean {
+  return tenantKey === allowedTenantKey;
 }

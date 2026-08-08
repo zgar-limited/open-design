@@ -265,17 +265,18 @@ function resolveToolPackVelaWebUrl(value: string | undefined): string | undefine
 
 /**
  * Feishu (Lark) OAuth config for the xDesign fork's app-level admission gate.
- * Sourced from OD_FEISHU_APP_ID / OD_FEISHU_APP_SECRET / OD_FEISHU_TENANT_ID /
+ * Sourced from OD_FEISHU_APP_ID / OD_FEISHU_APP_SECRET / OD_FEISHU_TENANT_KEY /
  * OD_FEISHU_BASE_URL at packaging time and baked into open-design-config.json;
  * the packaged Electron main reads them to run the OAuth login wall. Absent for
  * upstream/non-Feishu builds. The three credentials are all-or-nothing: setting
  * only some is a misconfiguration that fails the build rather than shipping a
- * half-broken gate.
+ * half-broken gate. `tenantKey` is Feishu's `tenant_key` (the value user_info
+ * returns), not the numeric `tenant_id`.
  */
 export type ToolPackFeishuConfig = {
   appId: string;
   appSecret: string;
-  tenantId: string;
+  tenantKey: string;
   baseUrl: string;
 };
 
@@ -309,15 +310,15 @@ function resolveFeishuBaseUrl(value: string | undefined): string {
 export function resolveToolPackFeishu(env: NodeJS.ProcessEnv): ToolPackFeishuConfig | undefined {
   const appId = resolveFeishuCredential(env.OD_FEISHU_APP_ID, "OD_FEISHU_APP_ID");
   const appSecret = resolveFeishuCredential(env.OD_FEISHU_APP_SECRET, "OD_FEISHU_APP_SECRET");
-  const tenantId = resolveFeishuCredential(env.OD_FEISHU_TENANT_ID, "OD_FEISHU_TENANT_ID");
-  const anySet = appId != null || appSecret != null || tenantId != null;
+  const tenantKey = resolveFeishuCredential(env.OD_FEISHU_TENANT_KEY, "OD_FEISHU_TENANT_KEY");
+  const anySet = appId != null || appSecret != null || tenantKey != null;
   if (!anySet) return undefined;
-  if (appId == null || appSecret == null || tenantId == null) {
+  if (appId == null || appSecret == null || tenantKey == null) {
     throw new Error(
-      "tools-pack: OD_FEISHU_APP_ID / OD_FEISHU_APP_SECRET / OD_FEISHU_TENANT_ID must all be set together",
+      "tools-pack: OD_FEISHU_APP_ID / OD_FEISHU_APP_SECRET / OD_FEISHU_TENANT_KEY must all be set together",
     );
   }
-  return { appId, appSecret, tenantId, baseUrl: resolveFeishuBaseUrl(env.OD_FEISHU_BASE_URL) };
+  return { appId, appSecret, tenantKey, baseUrl: resolveFeishuBaseUrl(env.OD_FEISHU_BASE_URL) };
 }
 
 function resolveToolPackPosthogCliApiKey(value: string | undefined): string | undefined {

@@ -1,6 +1,6 @@
 {
   "appId": "cli_xxxxxxxxxxxxxxxx",
   "appSecret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "tenantId": "xxxxxxxxxxxxxxxx",
+  "tenantKey": "xxxxxxxxxxxxxxxx",
   "baseUrl": "https://open.feishu.cn"
 }

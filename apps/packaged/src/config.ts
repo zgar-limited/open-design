@@ -25,13 +25,13 @@ export type PackagedAmrProfile = "prod" | "test" | "feature-test" | "local";
 /**
  * Feishu (Lark) OAuth config for the xDesign fork's app-level admission gate.
  * Read from `feishu` in open-design-config.json (baked by tools/pack from
- * OD_FEISHU_APP_ID/SECRET/TENANT_ID/BASE_URL). The packaged Electron main uses
+ * OD_FEISHU_APP_ID/SECRET/TENANT_KEY/BASE_URL). The packaged Electron main uses
  * these to run the OAuth login wall before the main window.
  */
 export type PackagedFeishuConfig = {
   appId: string;
   appSecret: string;
-  tenantId: string;
+  tenantKey: string;
   baseUrl: string;
 };
 
@@ -66,7 +66,7 @@ export type RawPackagedConfig = {
   // and this repository is public; absent for prod and fork builds.
   velaWebUrl?: string;
   // Feishu admission-gate config (xDesign fork); see PackagedFeishuConfig.
-  feishu?: { appId?: string; appSecret?: string; tenantId?: string; baseUrl?: string };
+  feishu?: { appId?: string; appSecret?: string; tenantKey?: string; baseUrl?: string };
   feishuAdmission?: boolean;
   webSidecarEntryRelative?: string;
   webStandaloneRoot?: string;
@@ -169,12 +169,12 @@ function resolvePackagedFeishu(raw: RawPackagedConfig["feishu"]): PackagedFeishu
   if (raw == null) return null;
   const appId = cleanOptionalString(raw.appId);
   const appSecret = cleanOptionalString(raw.appSecret);
-  const tenantId = cleanOptionalString(raw.tenantId);
-  if (appId == null || appSecret == null || tenantId == null) return null;
+  const tenantKey = cleanOptionalString(raw.tenantKey);
+  if (appId == null || appSecret == null || tenantKey == null) return null;
   return {
     appId,
     appSecret,
-    tenantId,
+    tenantKey,
     baseUrl: cleanOptionalString(raw.baseUrl) ?? PACKAGED_FEISHU_DEFAULT_BASE_URL,
   };
 }

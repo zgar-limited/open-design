@@ -60,7 +60,17 @@ export async function ensureFeishuAdmission(deps: EnsureFeishuAdmissionDeps): Pr
   const feishu = deps.config.feishu;
   // Gate is opt-in (feishuAdmission) AND must have full creds; anything less is
   // upstream behavior so unbranded builds boot unchanged.
-  if (!deps.config.feishuAdmission || feishu == null) return;
+  if (!deps.config.feishuAdmission) return;
+  if (feishu == null) {
+    // Fail CLOSED: an operator who turned the gate on but shipped no creds must
+    // NOT boot the workspace ungated (a hand-edited config, a partial bake, or a
+    // future code path could null out `feishu`). The build-time all-or-nothing
+    // check does not cover runtime-resolved configs.
+    throw new Error(
+      "feishuAdmission is enabled but the packaged config has no Feishu credentials; "
+        + "refusing to boot ungated. Set OD_FEISHU_APP_ID/APP_SECRET/TENANT_KEY at packaging time.",
+    );
+  }
   if (!safeStorage.isEncryptionAvailable()) {
     // No OS keychain to protect the token cache; fail closed rather than cache
     // tokens in plaintext.
@@ -115,13 +125,16 @@ async function runInteractiveGate(
     };
     loadAuthorize();
 
+    let processing = false;
     const handleCallback = async (url: string): Promise<void> => {
+      if (admitted || processing) return; // the redirect fires both will-navigate + did-start-navigation
       const parsed = parseCallback(url);
       if (parsed == null || parsed.state !== currentState) return; // not our callback / CSRF mismatch
+      processing = true;
       try {
         const tokens = await exchangeCodeForTokens(feishu, parsed.code);
         const info = await fetchUserInfo(feishu, tokens.accessToken);
-        if (!isAllowedTenant(info.tenantKey, feishu.tenantId)) {
+        if (!isAllowedTenant(info.tenantKey, feishu.tenantKey)) {
           gate.loadURL(renderErrorPage("不在允许的飞书组织内", "请联系管理员加入授权组织后再登录。"));
           return; // stay gated; the user closes the app
         }
@@ -130,8 +143,10 @@ async function runInteractiveGate(
         gate.close();
         resolve();
       } catch (error) {
-        gate.loadURL(renderErrorPage("飞书登录失败", explainError(error) + "\n正在重试…"));
+        gate.loadURL(renderErrorPage("飞书登录失败", explainError(error) + " 正在重试…"));
         setTimeout(loadAuthorize, 2500); // transient error -> retry the authorize flow
+      } finally {
+        processing = false;
       }
     };
 
@@ -191,22 +206,28 @@ function explainError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function renderErrorPage(title: string, body: string): string {
   return (
     "data:text/html;charset=utf-8,"
     + encodeURIComponent(
-      `<!doctype html><meta charset="utf-8"><title>xDesign · Feishu 登录</title>
+      `<!doctype html><meta charset="utf-8"><title>xDesign · 飞书登录</title>
 <style>body{font:14px/1.6 -apple-system,sans-serif;margin:0;padding:48px 32px;color:#353535;text-align:center}
 h1{font-size:18px;margin:0 0 12px}</style>
-<h1>${title}</h1><p>${body}</p>`,
+<h1>${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p>`,
     )
   );
 }
 
 /**
- * Periodically re-validate admission while the app runs. If the cached token can
- * no longer refresh (e.g. revoked), hide the workspace and re-run the gate so an
- * ex-employee is locked back out without relaunching.
+ * Periodically re-validate admission against Feishu while the app runs. Unlike
+ * the boot check, this is a SERVER-SIDE probe (fetchUserInfo) so a token revoked
+ * before its local expiry — e.g. an employee removed from the tenant — is caught
+ * and the user is locked back to the gate instead of staying in for up to the
+ * refresh-token lifetime.
  */
 export function startFeishuRevalidation(
   deps: EnsureFeishuAdmissionDeps,
@@ -215,12 +236,33 @@ export function startFeishuRevalidation(
 ): NodeJS.Timeout {
   return setInterval(() => {
     void (async () => {
+      if (!deps.config.feishuAdmission) return;
       const feishu = deps.config.feishu;
-      if (!deps.config.feishuAdmission || feishu == null) return;
+      if (feishu == null) {
+        onLock(); // creds dropped mid-runtime -> re-gate (which then fails closed)
+        return;
+      }
       const token = await loadToken(deps.tokenPath, safeStorage);
-      const now = (deps.now ?? Date.now)();
-      if (token == null || (!isFresh(token, now) && !canRefresh(token, now))) {
+      if (token == null) {
         onLock();
+        return;
+      }
+      try {
+        await fetchUserInfo(feishu, token.accessToken);
+      } catch {
+        // Access token rejected/revoked. Try to refresh; if that also fails,
+        // clear the cache and force the user back through the gate.
+        try {
+          const renewed = await refreshTokens(feishu, token.refreshToken);
+          await saveToken(
+            deps.tokenPath,
+            cacheTokenFromTokens(renewed, { tenantKey: token.tenantKey, name: token.name }, (deps.now ?? Date.now)()),
+            safeStorage,
+          );
+        } catch {
+          await clearToken(deps.tokenPath);
+          onLock();
+        }
       }
     })();
   }, intervalMs);

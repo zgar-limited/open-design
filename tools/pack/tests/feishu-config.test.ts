@@ -12,12 +12,12 @@ describe("resolveToolPackFeishu", () => {
       resolveToolPackFeishu({
         OD_FEISHU_APP_ID: "cli_x",
         OD_FEISHU_APP_SECRET: "secret_y",
-        OD_FEISHU_TENANT_ID: "tenant_z",
+        OD_FEISHU_TENANT_KEY: "tenant_z",
       }),
     ).toEqual({
       appId: "cli_x",
       appSecret: "secret_y",
-      tenantId: "tenant_z",
+      tenantKey: "tenant_z",
       baseUrl: "https://open.feishu.cn",
     });
   });
@@ -27,7 +27,7 @@ describe("resolveToolPackFeishu", () => {
       resolveToolPackFeishu({
         OD_FEISHU_APP_ID: "cli_x",
         OD_FEISHU_APP_SECRET: "secret_y",
-        OD_FEISHU_TENANT_ID: "tenant_z",
+        OD_FEISHU_TENANT_KEY: "tenant_z",
         OD_FEISHU_BASE_URL: "https://open.larksuite.com",
       }),
     ).toMatchObject({ baseUrl: "https://open.larksuite.com" });
@@ -38,7 +38,7 @@ describe("resolveToolPackFeishu", () => {
       resolveToolPackFeishu({
         OD_FEISHU_APP_ID: "  cli_x  ",
         OD_FEISHU_APP_SECRET: "secret_y",
-        OD_FEISHU_TENANT_ID: "tenant_z",
+        OD_FEISHU_TENANT_KEY: "tenant_z",
       }),
     ).toMatchObject({ appId: "cli_x" });
   });
@@ -54,7 +54,7 @@ describe("resolveToolPackFeishu", () => {
       resolveToolPackFeishu({
         OD_FEISHU_APP_ID: "cli_x",
         OD_FEISHU_APP_SECRET: "secret_y",
-        OD_FEISHU_TENANT_ID: "tenant_z",
+        OD_FEISHU_TENANT_KEY: "tenant_z",
         OD_FEISHU_BASE_URL: "not a url",
       }),
     ).toThrow(/OD_FEISHU_BASE_URL/);
@@ -65,7 +65,7 @@ describe("resolveToolPackFeishu", () => {
       resolveToolPackFeishu({
         OD_FEISHU_APP_ID: "cli_x",
         OD_FEISHU_APP_SECRET: "secret with space",
-        OD_FEISHU_TENANT_ID: "tenant_z",
+        OD_FEISHU_TENANT_KEY: "tenant_z",
       }),
     ).toThrow(/OD_FEISHU_APP_SECRET/);
   });

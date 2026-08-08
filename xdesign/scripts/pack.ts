@@ -60,21 +60,21 @@ if (existsSync(linuxIcon)) env.OD_LINUX_ICON = linuxIcon;
 interface FeishuConfig {
   appId?: string;
   appSecret?: string;
-  tenantId?: string;
+  tenantKey?: string;
   baseUrl?: string;
 }
 const feishuConfigPath = join(repoRoot, "xdesign", "brand", "feishu.json");
 if (process.env.OD_FEISHU_ADMISSION !== "true" && existsSync(feishuConfigPath)) {
   const feishu = JSON.parse(readFileSync(feishuConfigPath, "utf8")) as FeishuConfig;
-  if (feishu.appId && feishu.appSecret && feishu.tenantId) {
+  if (feishu.appId && feishu.appSecret && feishu.tenantKey) {
     env.OD_FEISHU_ADMISSION = "true";
     env.OD_FEISHU_APP_ID = feishu.appId;
     env.OD_FEISHU_APP_SECRET = feishu.appSecret;
-    env.OD_FEISHU_TENANT_ID = feishu.tenantId;
+    env.OD_FEISHU_TENANT_KEY = feishu.tenantKey;
     if (feishu.baseUrl) env.OD_FEISHU_BASE_URL = feishu.baseUrl;
   } else {
     throw new Error(
-      "xdesign/brand/feishu.json must define appId, appSecret, and tenantId (see feishu.example.json)",
+      "xdesign/brand/feishu.json must define appId, appSecret, and tenantKey (see feishu.example.json)",
     );
   }
 }
