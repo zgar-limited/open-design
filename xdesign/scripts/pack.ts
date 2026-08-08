@@ -52,6 +52,33 @@ if (existsSync(macIcon)) env.OD_MAC_ICON = macIcon;
 if (existsSync(winIcon)) env.OD_WIN_ICON = winIcon;
 if (existsSync(linuxIcon)) env.OD_LINUX_ICON = linuxIcon;
 
+// Feishu admission gate (xDesign fork). When xdesign/brand/feishu.json is
+// present (gitignored — holds app_id/app_secret/tenant_id), turn the gate ON and
+// forward the creds so tools-pack bakes them into the packaged config. Missing
+// file (or OD_FEISHU_ADMISSION already set in the ambient env) leaves the gate
+// off, preserving upstream boot. feishu.example.json is the template.
+interface FeishuConfig {
+  appId?: string;
+  appSecret?: string;
+  tenantId?: string;
+  baseUrl?: string;
+}
+const feishuConfigPath = join(repoRoot, "xdesign", "brand", "feishu.json");
+if (process.env.OD_FEISHU_ADMISSION !== "true" && existsSync(feishuConfigPath)) {
+  const feishu = JSON.parse(readFileSync(feishuConfigPath, "utf8")) as FeishuConfig;
+  if (feishu.appId && feishu.appSecret && feishu.tenantId) {
+    env.OD_FEISHU_ADMISSION = "true";
+    env.OD_FEISHU_APP_ID = feishu.appId;
+    env.OD_FEISHU_APP_SECRET = feishu.appSecret;
+    env.OD_FEISHU_TENANT_ID = feishu.tenantId;
+    if (feishu.baseUrl) env.OD_FEISHU_BASE_URL = feishu.baseUrl;
+  } else {
+    throw new Error(
+      "xdesign/brand/feishu.json must define appId, appSecret, and tenantId (see feishu.example.json)",
+    );
+  }
+}
+
 const args = process.argv.slice(2);
 const child = spawn("pnpm", ["tools-pack", ...args], {
   stdio: "inherit",
