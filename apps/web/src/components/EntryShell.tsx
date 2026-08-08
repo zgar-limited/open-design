@@ -111,6 +111,7 @@ import {
   type AmrBalanceGateScope,
 } from '../runtime/amr-balance-gate';
 import { isPaidAmrPlan, resolveAmrPlan } from '../runtime/amr-low-balance-plan';
+import { feishuAdmissionEnabled } from '../runtime/feishu-admission';
 import { HomeView, seedHomeComposerPrompt } from './HomeView';
 import { EntryBlankState } from './EntryBlankState';
 import { RecentProjectsStrip } from './RecentProjectsStrip';
@@ -597,7 +598,7 @@ export function EntryShell({
     // The entry shell is the authenticated Home surface. A definitive
     // signed-out result returns it to the Cloud identity gate while leaving
     // the saved model source untouched for passive reauthentication.
-    if (amrLoggedIn !== false || view === 'onboarding') return;
+    if (feishuAdmissionEnabled() || amrLoggedIn !== false || view === 'onboarding') return;
     navigate({ kind: 'home', view: 'onboarding' }, { replace: true });
   }, [amrLoggedIn, view]);
   // The one shared workspace context. Any non-null context is a real workspace
@@ -3078,6 +3079,23 @@ function OnboardingView({
   // Step 1 is identity only: every user signs into xDesign Cloud before
   // choosing Hosted, Local, or BYOK on the next screen.
   if (step === 0) {
+    if (feishuAdmissionEnabled()) {
+      // xDesign fork: identity is Feishu (admitted at the packaged-app gate),
+      // so the upstream cloud-identity step never applies. Render a neutral
+      // placeholder instead of the vela Cloud sign-in CTA. The redirect guard
+      // above keeps this route off the happy path; the nav rail lets a user who
+      // lands here return to the workspace.
+      return (
+        <section className="onboarding-view" aria-label="xDesign">
+          <div className="onboarding-cloud__pane">
+            <div className="onboarding-cloud__center">
+              <h1 className="onboarding-cloud__title">xDesign</h1>
+              <p className="onboarding-cloud__body">已通过飞书登录</p>
+            </div>
+          </div>
+        </section>
+      );
+    }
     const cloudBusy = amrLoginPending;
     const amrStatusResolving = !amrStatusResolved;
     return (

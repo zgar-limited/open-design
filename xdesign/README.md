@@ -124,6 +124,40 @@ should read the fork name.
      .tmp/tools-pack/out/mac/namespaces/xdesign-verify/install/Applications/xDesign.app/Contents/Resources/open-design-web-standalone/apps/web/.next/static
    ```
 
+## Feishu admission gate (xDesign fork)
+
+The packaged app can require a Feishu (Lark) login before the workspace boots,
+restricting it to a configured Feishu tenant. The gate is **app-level** (a
+pre-main-window login window in the packaged Electron main; the daemon keeps its
+upstream localhost trust unchanged). When the gate is on, the upstream
+vela/AMR Cloud sign-in entry is suppressed from the web — Feishu is the sole
+identity.
+
+To enable it, copy the credentials template and fill in your Feishu self-built
+app's values:
+
+```bash
+cp xdesign/brand/feishu.example.json xdesign/brand/feishu.json
+# edit xdesign/brand/feishu.json → appId, appSecret, tenantKey (baseUrl defaults
+# to https://open.feishu.cn; use https://open.larksuite.com for Lark international)
+```
+
+`xdesign/brand/feishu.json` is gitignored (never commit real secrets). With it
+present, the `pack.ts` wrapper sets `OD_FEISHU_ADMISSION=true` plus the
+`OD_FEISHU_*` creds, so a branded build also turns on the gate:
+
+```bash
+node --experimental-strip-types xdesign/scripts/pack.ts mac build --to dmg --namespace xdesign-feishu
+```
+
+The first launch shows a Feishu login window; a user in the configured tenant is
+admitted (token cached in the OS keychain via `safeStorage`, refreshed silently
+on later launches), others are rejected. You must also register the redirect URI
+`http://localhost:27457/feishu/callback` in the Feishu app's "重定向 URL" config.
+
+To build WITHOUT the gate (the file absent, or `OD_FEISHU_ADMISSION` unset), the
+app boots with the upstream login surface unchanged.
+
 ## Layout
 
 ```

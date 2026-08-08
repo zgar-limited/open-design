@@ -146,7 +146,10 @@ async function buildWorkspaceArtifacts(config: ToolPackConfig): Promise<void> {
   await runPnpm(config, ["--filter", "@open-design/components", "build"]);
   await runPnpm(config, ["--filter", "@open-design/daemon", "build"]);
   try {
-    await runPnpm(config, ["--filter", "@open-design/web", "build"], { OD_WEB_OUTPUT_MODE: config.webOutputMode });
+    await runPnpm(config, ["--filter", "@open-design/web", "build"], {
+      OD_WEB_OUTPUT_MODE: config.webOutputMode,
+      ...(config.feishuAdmission ? { NEXT_PUBLIC_OD_FEISHU_ADMISSION: "true" } : {}),
+    });
     await runPnpm(config, ["--filter", "@open-design/web", "build:sidecar"]);
     // Inject chunk IDs + upload browser sourcemaps to PostHog, then strip
     // .map files before any packaging step copies the web output into the

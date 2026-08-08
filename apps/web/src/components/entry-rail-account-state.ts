@@ -1,4 +1,5 @@
 import type { WorkspaceContextState } from '../collab/useWorkspaceContext';
+import { feishuAdmissionEnabled } from '../runtime/feishu-admission';
 
 export type EntryRailAccountFooterState = 'hidden' | 'syncing' | 'sign-in';
 
@@ -16,6 +17,9 @@ export function resolveEntryRailAccountFooterState(
   workspaceState: WorkspaceContextState,
   amrLoggedIn: boolean | null | undefined,
 ): EntryRailAccountFooterState {
+  // xDesign fork: Feishu is the sole identity (admitted at the packaged-app
+  // gate), so the upstream Cloud sign-in tip never appears.
+  if (feishuAdmissionEnabled()) return 'hidden';
   if (workspaceState.context) return 'hidden';
   if (workspaceState.loading) return 'syncing';
   if (

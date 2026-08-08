@@ -22,6 +22,21 @@ export const PACKAGED_WEB_OUTPUT_MODE_ENV = "OD_WEB_OUTPUT_MODE";
 export type PackagedWebOutputMode = "server" | "standalone";
 export type PackagedAmrProfile = "prod" | "test" | "feature-test" | "local";
 
+/**
+ * Feishu (Lark) OAuth config for the xDesign fork's app-level admission gate.
+ * Read from `feishu` in open-design-config.json (baked by tools/pack from
+ * OD_FEISHU_APP_ID/SECRET/TENANT_KEY/BASE_URL). The packaged Electron main uses
+ * these to run the OAuth login wall before the main window.
+ */
+export type PackagedFeishuConfig = {
+  appId: string;
+  appSecret: string;
+  tenantKey: string;
+  baseUrl: string;
+};
+
+const PACKAGED_FEISHU_DEFAULT_BASE_URL = "https://open.feishu.cn";
+
 export type RawPackagedConfig = {
   amrProfile?: string;
   appVersion?: string;
@@ -50,6 +65,9 @@ export type RawPackagedConfig = {
   // checked in because the non-prod AMR environments are internal deployments
   // and this repository is public; absent for prod and fork builds.
   velaWebUrl?: string;
+  // Feishu admission-gate config (xDesign fork); see PackagedFeishuConfig.
+  feishu?: { appId?: string; appSecret?: string; tenantKey?: string; baseUrl?: string };
+  feishuAdmission?: boolean;
   webSidecarEntryRelative?: string;
   webStandaloneRoot?: string;
   webOutputMode?: string;
@@ -69,6 +87,8 @@ export type PackagedConfig = {
   posthogKey: string | null;
   posthogHost: string | null;
   velaWebUrl: string | null;
+  feishu?: PackagedFeishuConfig | null;
+  feishuAdmission?: boolean;
   webSidecarEntry: string | null;
   webStandaloneRoot: string | null;
   webOutputMode: PackagedWebOutputMode;
@@ -145,6 +165,20 @@ export function resolvePackagedAmrProfile(value: string | undefined): PackagedAm
   throw new Error(`unsupported packaged AMR profile; expected prod, test, feature-test, or local: ${value}`);
 }
 
+function resolvePackagedFeishu(raw: RawPackagedConfig["feishu"]): PackagedFeishuConfig | null {
+  if (raw == null) return null;
+  const appId = cleanOptionalString(raw.appId);
+  const appSecret = cleanOptionalString(raw.appSecret);
+  const tenantKey = cleanOptionalString(raw.tenantKey);
+  if (appId == null || appSecret == null || tenantKey == null) return null;
+  return {
+    appId,
+    appSecret,
+    tenantKey,
+    baseUrl: cleanOptionalString(raw.baseUrl) ?? PACKAGED_FEISHU_DEFAULT_BASE_URL,
+  };
+}
+
 function isTruthyEnv(value: string | undefined): boolean {
   return value === "1" || value === "true" || value === "yes";
 }
@@ -216,6 +250,8 @@ export async function readPackagedConfig(): Promise<PackagedConfig> {
     posthogKey: cleanOptionalString(raw.posthogKey),
     posthogHost: cleanOptionalString(raw.posthogHost),
     velaWebUrl: cleanOptionalString(raw.velaWebUrl),
+    feishu: resolvePackagedFeishu(raw.feishu),
+    feishuAdmission: raw.feishuAdmission === true,
     webSidecarEntry,
     webStandaloneRoot,
     webOutputMode,

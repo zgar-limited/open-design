@@ -920,11 +920,12 @@ function createPendingHtml(): string {
         display: flex;
         justify-content: center;
       }
-      video {
+      #splash {
         background: #f2f4f5;
+        border-radius: 22%;
         height: auto;
-        max-height: 100%;
-        max-width: 100%;
+        max-height: 240px;
+        max-width: 240px;
         width: auto;
       }
       .boot-stage {
@@ -979,14 +980,11 @@ function createPendingHtml(): string {
     </style>
   </head>
   <body>
-    <video
+    <img
       id="splash"
-      autoplay
-      muted
-      playsinline
-      disablepictureinpicture
       src="${SPLASH_VIDEO_DATA_URL}"
-    ></video>
+      alt="xDesign"
+    />
     <div class="boot-progress" aria-hidden="true">
       <div class="boot-progress-fill" id="boot-progress-fill" data-pct="${initialPct}" style="width: ${initialPct}%;"></div>
     </div>
@@ -994,17 +992,7 @@ function createPendingHtml(): string {
       <span class="boot-stage-step" id="boot-stage-step">${start.step}/${start.total}</span><span id="boot-stage-text">${start.label}</span><span class="boot-dots" aria-hidden="true"><span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></span>
     </div>
     <script>
-      (function () {
-        var video = document.getElementById("splash");
-        if (!video) return;
-        var play = function () {
-          var attempt = video.play();
-          if (attempt && typeof attempt.catch === "function") attempt.catch(function () {});
-        };
-        video.addEventListener("loadedmetadata", function () { video.currentTime = 0; });
-        video.addEventListener("loadeddata", play);
-        play();
-      })();
+      // Splash asset is a static image (xDesign icon); no video play/loop needed.
       // Accepts the structured { step, total, label } payload (and tolerates a
       // bare label string for back-compat). The step counter + progress bar give
       // a slow cold boot a sense of how far along it is; the bar only ever grows

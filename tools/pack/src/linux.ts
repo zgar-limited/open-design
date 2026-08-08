@@ -543,7 +543,10 @@ async function buildWorkspaceArtifacts(config: ToolPackConfig): Promise<void> {
   await runPnpm(config, ["--filter", "@open-design/components", "build"]);
   await runPnpm(config, ["--filter", "@open-design/daemon", "build"]);
   try {
-    await runPnpm(config, ["--filter", "@open-design/web", "build"], { OD_WEB_OUTPUT_MODE: "server" });
+    await runPnpm(config, ["--filter", "@open-design/web", "build"], {
+      OD_WEB_OUTPUT_MODE: "server",
+      ...(config.feishuAdmission ? { NEXT_PUBLIC_OD_FEISHU_ADMISSION: "true" } : {}),
+    });
     await runPnpm(config, ["--filter", "@open-design/web", "build:sidecar"]);
     // Inject chunk IDs + upload browser sourcemaps to PostHog, then strip
     // .map files before AppImage packaging. See
@@ -655,6 +658,8 @@ async function writeAssembledApp(
         ...(config.posthogKey == null ? {} : { posthogKey: config.posthogKey }),
         ...(config.posthogHost == null ? {} : { posthogHost: config.posthogHost }),
         ...(config.velaWebUrl == null ? {} : { velaWebUrl: config.velaWebUrl }),
+        ...(config.feishu == null ? {} : { feishu: config.feishu }),
+        ...(config.feishuAdmission ? { feishuAdmission: true } : {}),
         ...(config.portable ? {} : { namespaceBaseRoot: config.roots.runtime.namespaceBaseRoot }),
       },
       null,
