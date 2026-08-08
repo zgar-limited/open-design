@@ -2676,7 +2676,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('pins Open Design to the top of the installed CLI list', () => {
+  it('pins xDesign to the top of the installed CLI list', () => {
     const claudeAgent: AgentInfo = {
       id: 'claude',
       name: 'Claude Code',
@@ -4628,9 +4628,9 @@ describe('SettingsDialog connectors interactions', () => {
 
 describe('SettingsDialog MCP server interactions', () => {
   const installInfo = {
-    command: '/Applications/Open Design.app/Contents/Resources/open-design/bin/node',
+    command: '/Applications/xDesign.app/Contents/Resources/open-design/bin/node',
     args: [
-      '/Applications/Open Design.app/Contents/Resources/app/node_modules/@open-design/daemon/dist/cli.js',
+      '/Applications/xDesign.app/Contents/Resources/app/node_modules/@open-design/daemon/dist/cli.js',
       'mcp',
       '--daemon-url',
       'http://127.0.0.1:51706',
@@ -4683,12 +4683,12 @@ describe('SettingsDialog MCP server interactions', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/mcp/install-info');
     });
-    expect(screen.getByRole('heading', { name: /Connect Open Design to your coding agent/i })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Connect xDesign to your coding agent/i })).toBeTruthy();
     expect(screen.queryByText(/Run this command in your terminal/i)).toBeNull();
     await waitFor(() => {
       expect(screen.getByText(/claude mcp add-json --scope user open-design/i)).toBeTruthy();
     });
-    expect(screen.getByText(/Keep Open Design running\. Restart your coding agent after setup\./i)).toBeTruthy();
+    expect(screen.getByText(/Keep xDesign running\. Restart your coding agent after setup\./i)).toBeTruthy();
     expect(screen.getByText(/What your agent can do/i)).toBeTruthy();
   });
 
@@ -5718,13 +5718,13 @@ describe('SettingsDialog about interactions', () => {
     });
     const downloaded = updateStatus({
       artifact: {
-        name: 'Open Design Beta.dmg',
+        name: 'xDesign Beta.dmg',
         platformKey: 'macAppleSilicon',
         type: 'dmg',
-        url: 'https://fixture.test/Open Design Beta.dmg',
+        url: 'https://fixture.test/xDesign Beta.dmg',
       },
       availableVersion: '1.2.3-beta.4',
-      downloadPath: '/tmp/open-design-updater/Open Design Beta.dmg',
+      downloadPath: '/tmp/open-design-updater/xDesign Beta.dmg',
       state: 'downloaded',
     });
     const download = vi.fn(async () => downloaded);
