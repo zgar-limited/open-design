@@ -36,16 +36,18 @@ export type FeishuUserInfo = {
   openId?: string;
 };
 
-/** OAuth redirect URI — a custom scheme the gate window intercepts. */
-export const FEISHU_REDIRECT_URI = "xdesign://feishu/callback";
-
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" } as const;
 
-/** Build the Feishu authorize URL the gate window loads. */
-export function buildAuthorizeUrl(creds: FeishuCreds, state: string): string {
+/**
+ * Build the Feishu authorize URL the gate window loads. The redirect_uri is the
+ * gate's loopback HTTP callback (`http://localhost:<port>/feishu/callback`) —
+ * Feishu's redirect-URL config only accepts http(s), not custom schemes, so the
+ * gate runs a local server to capture the code.
+ */
+export function buildAuthorizeUrl(creds: FeishuCreds, redirectUri: string, state: string): string {
   const params = new URLSearchParams({
     app_id: creds.appId,
-    redirect_uri: FEISHU_REDIRECT_URI,
+    redirect_uri: redirectUri,
     response_type: "code",
     state,
   });
@@ -55,17 +57,24 @@ export function buildAuthorizeUrl(creds: FeishuCreds, state: string): string {
 type FeishuEnvelope<T> = { code: number; msg?: string; data?: T };
 
 /**
- * Call a Feishu endpoint and unwrap the `{code,msg,data}` envelope. Throws on a
- * non-zero `code` (Feishu signals all errors — including transport-level — via
- * the envelope, with HTTP 200) so the gate surfaces a clear rejection.
+ * Call a Feishu endpoint and unwrap its envelope. Throws on a non-zero `code`
+ * (Feishu signals all errors — including transport-level — via the envelope,
+ * with HTTP 200). Note the two response shapes: most endpoints nest the payload
+ * under `{data}`, but the `auth/v3` token endpoints (`app_access_token/internal`)
+ * return the fields at the ROOT alongside `code`/`msg` with no `data` wrapper.
+ * Accept whichever is present.
  */
 async function feishuFetch<T>(url: string, init: RequestInit): Promise<T> {
   const response = await fetch(url, init);
-  const body = (await response.json()) as FeishuEnvelope<T>;
-  if (body.code !== 0 || body.data == null) {
+  const body = (await response.json()) as FeishuEnvelope<T> & Record<string, unknown>;
+  if (body.code !== 0) {
     throw new Error(`Feishu API ${url} failed: code=${body.code} msg=${body.msg ?? "<none>"}`);
   }
-  return body.data;
+  const payload = (body.data ?? body) as T;
+  if (payload == null) {
+    throw new Error(`Feishu API ${url} returned an empty payload`);
+  }
+  return payload;
 }
 
 async function fetchAppAccessToken(creds: FeishuCreds): Promise<string> {

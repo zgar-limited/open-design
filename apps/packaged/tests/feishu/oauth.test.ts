@@ -29,16 +29,16 @@ beforeEach(() => {
 
 describe("buildAuthorizeUrl", () => {
   it("builds the authorize URL with app_id, redirect_uri, response_type, state", () => {
-    const url = new URL(buildAuthorizeUrl(creds, "nonce123"));
+    const url = new URL(buildAuthorizeUrl(creds, "http://localhost:27457/feishu/callback", "nonce123"));
     expect(url.origin + url.pathname).toBe("https://open.feishu.cn/open-apis/authen/v1/index");
     expect(url.searchParams.get("app_id")).toBe("cli_x");
-    expect(url.searchParams.get("redirect_uri")).toBe("xdesign://feishu/callback");
+    expect(url.searchParams.get("redirect_uri")).toBe("http://localhost:27457/feishu/callback");
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("state")).toBe("nonce123");
   });
 
   it("uses the configured baseUrl (Lark international)", () => {
-    const url = buildAuthorizeUrl({ ...creds, baseUrl: "https://open.larksuite.com" }, "s");
+    const url = buildAuthorizeUrl({ ...creds, baseUrl: "https://open.larksuite.com" }, "http://localhost:27457/feishu/callback", "s");
     expect(url).toMatch(/^https:\/\/open\.larksuite\.com\/open-apis\/authen\/v1\/index/);
   });
 });
@@ -46,7 +46,7 @@ describe("buildAuthorizeUrl", () => {
 describe("exchangeCodeForTokens", () => {
   it("fetches app_access_token then exchanges the code for user tokens", async () => {
     const fn = mockFetch([
-      { body: { code: 0, msg: "ok", data: { app_access_token: "app-tok", expire: 7200 } } },
+      { body: { code: 0, msg: "ok", app_access_token: "app-tok", expire: 7200 } },
       {
         body: {
           code: 0,
@@ -74,7 +74,7 @@ describe("exchangeCodeForTokens", () => {
   });
 
   it("throws on a Feishu error envelope (non-zero code)", async () => {
-    mockFetch([{ body: { code: 0, data: { app_access_token: "app-tok", expire: 7200 } } },
+    mockFetch([{ body: { code: 0, msg: "ok", app_access_token: "app-tok", expire: 7200 } },
       { body: { code: 99991663, msg: "code invalid" } }]);
     await expect(exchangeCodeForTokens(creds, "bad")).rejects.toThrow(/99991663|code invalid/);
   });
@@ -83,7 +83,7 @@ describe("exchangeCodeForTokens", () => {
 describe("refreshTokens", () => {
   it("exchanges a refresh_token for new tokens", async () => {
     const fn = mockFetch([
-      { body: { code: 0, data: { app_access_token: "app-tok", expire: 7200 } } },
+      { body: { code: 0, msg: "ok", app_access_token: "app-tok", expire: 7200 } },
       { body: { code: 0, data: { access_token: "user-tok-2", refresh_token: "refresh-2", expires_in: 6900, refresh_expires_in: 2_592_000 } } },
     ]);
     const tokens = await refreshTokens(creds, "refresh-tok");

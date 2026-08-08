@@ -153,7 +153,7 @@ node --experimental-strip-types xdesign/scripts/pack.ts mac build --to dmg --nam
 The first launch shows a Feishu login window; a user in the configured tenant is
 admitted (token cached in the OS keychain via `safeStorage`, refreshed silently
 on later launches), others are rejected. You must also register the redirect URI
-`xdesign://feishu/callback` in the Feishu app's "重定向 URL" config.
+`http://localhost:27457/feishu/callback` in the Feishu app's "重定向 URL" config.
 
 To build WITHOUT the gate (the file absent, or `OD_FEISHU_ADMISSION` unset), the
 app boots with the upstream login surface unchanged.

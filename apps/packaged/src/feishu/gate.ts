@@ -10,17 +10,19 @@
  *   1. Gate disabled / unconfigured  -> return immediately (upstream behavior).
  *   2. Cached access token fresh     -> return.
  *   3. Cached access expired, refresh token valid -> refresh silently, return.
- *   4. Otherwise open a Feishu login window; capture the `xdesign://feishu/
- *      callback?code=...&state=...` redirect; exchange -> fetch tenant ->
- *      admit if the tenant matches, else reject. Cache the token (safeStorage).
+ *   4. Otherwise open a Feishu login window; a loopback HTTP server captures the
+ *      `http://localhost:<port>/feishu/callback?code=...&state=...` redirect;
+ *      exchange -> fetch tenant -> admit if the tenant matches, else reject.
+ *      Cache the token (safeStorage).
  *
  * This module is Electron-runtime code; the pure pieces (oauth.ts, token-cache.ts)
  * are unit-tested. The window/callback wiring is validated by the branded smoke
  * build with real credentials.
  */
 import { randomBytes } from "node:crypto";
+import { createServer, type Server } from "node:http";
 
-import { app, BrowserWindow, safeStorage, type BrowserWindow as BrowserWindowType } from "electron";
+import { BrowserWindow, safeStorage, type BrowserWindow as BrowserWindowType } from "electron";
 
 import type { PackagedConfig, PackagedFeishuConfig } from "../config.js";
 import {
@@ -39,7 +41,13 @@ import {
   saveToken,
 } from "./token-cache.js";
 
-const FEISHU_CALLBACK_PREFIX = "xdesign://feishu/callback";
+/**
+ * Fixed loopback port for the OAuth callback. Feishu's redirect-URL config needs
+ * an exact http(s) URL registered, so the port is fixed (not ephemeral). The
+ * gate registers `http://localhost:<port>/feishu/callback` and the user must add
+ * that same URL to the Feishu app's "重定向 URL".
+ */
+const FEISHU_LOOPBACK_PORT = 27457;
 
 export type EnsureFeishuAdmissionDeps = {
   config: PackagedConfig;
@@ -101,7 +109,10 @@ async function runInteractiveGate(
   deps: EnsureFeishuAdmissionDeps,
   now: () => number,
 ): Promise<void> {
-  if (!app.isDefaultProtocolClient("xdesign")) app.setAsDefaultProtocolClient("xdesign");
+  // Feishu's redirect-URL config only accepts http(s), so the gate runs a local
+  // HTTP server on a fixed loopback port. Register this exact URL in the Feishu
+  // app's "重定向 URL":  http://localhost:<FEISHU_LOOPBACK_PORT>/feishu/callback
+  const redirectUri = `http://localhost:${FEISHU_LOOPBACK_PORT}/feishu/callback`;
 
   await new Promise<void>((resolve, reject) => {
     const gate = new BrowserWindow({
@@ -111,95 +122,83 @@ async function runInteractiveGate(
       height: 760,
       resizable: false,
       show: true,
-      title: "xDesign · Feishu 登录",
+      title: "xDesign · 飞书登录",
       width: 480,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
     });
     deps.splashWindow?.hide();
 
     let admitted = false;
+    let processing = false;
     let currentState = "";
     const loadAuthorize = (): void => {
       currentState = randomBytes(16).toString("hex");
-      gate.loadURL(buildAuthorizeUrl(feishu, currentState));
+      gate.loadURL(buildAuthorizeUrl(feishu, redirectUri, currentState));
     };
-    loadAuthorize();
 
-    let processing = false;
-    const handleCallback = async (url: string): Promise<void> => {
-      if (admitted || processing) return; // the redirect fires both will-navigate + did-start-navigation
-      const parsed = parseCallback(url);
-      if (parsed == null || parsed.state !== currentState) return; // not our callback / CSRF mismatch
+    const handleCallback = async (code: string): Promise<{ title: string; body: string }> => {
+      if (admitted || processing) return { title: "处理中", body: "请稍候…" };
       processing = true;
       try {
-        const tokens = await exchangeCodeForTokens(feishu, parsed.code);
+        const tokens = await exchangeCodeForTokens(feishu, code);
         const info = await fetchUserInfo(feishu, tokens.accessToken);
         if (!isAllowedTenant(info.tenantKey, feishu.tenantKey)) {
-          gate.loadURL(renderErrorPage("不在允许的飞书组织内", "请联系管理员加入授权组织后再登录。"));
-          return; // stay gated; the user closes the app
+          return { title: "不在允许的飞书组织内", body: "请联系管理员加入授权组织后再登录。" };
         }
         await saveToken(deps.tokenPath, cacheTokenFromTokens(tokens, info, now()), safeStorage);
         admitted = true;
-        gate.close();
-        resolve();
+        const message = `登录成功，${info.name}。正在进入 xDesign…`;
+        setTimeout(() => {
+          if (!gate.isDestroyed()) gate.close();
+          resolve();
+        }, 900); // let the success page flash before the workspace takes over
+        return { title: "登录成功", body: message };
       } catch (error) {
-        gate.loadURL(renderErrorPage("飞书登录失败", explainError(error) + " 正在重试…"));
         setTimeout(loadAuthorize, 2500); // transient error -> retry the authorize flow
+        return { title: "飞书登录失败", body: `${explainError(error)} 正在重试…` };
       } finally {
         processing = false;
       }
     };
 
-    const isCallback = (url: string): boolean => url.startsWith(FEISHU_CALLBACK_PREFIX);
-    // Capture the redirect inside the gate window (the renderer can't load the
-    // xdesign:// scheme, so we intercept the navigation that carries the code).
-    // Listeners are inlined so TS infers the Electron event types; the window's
-    // webContents (and its listeners) are torn down when the gate window closes.
-    gate.webContents.on("did-start-navigation", (_event, url) => {
-      if (isCallback(url)) void handleCallback(url);
-    });
-    gate.webContents.on("will-navigate", (event, url) => {
-      if (isCallback(url)) {
-        event.preventDefault();
-        void handleCallback(url);
+    // Loopback HTTP server that receives Feishu's ?code=&state= redirect.
+    const server: Server = createServer((req, res) => {
+      const url = req.url ?? "";
+      if (!url.startsWith("/feishu/callback")) {
+        res.writeHead(404, { "content-type": "text/html; charset=utf-8" });
+        res.end(gateHtml("404", ""));
+        return;
       }
+      const q = url.indexOf("?");
+      const params = new URLSearchParams(q >= 0 ? url.slice(q + 1) : "");
+      const code = params.get("code");
+      const state = params.get("state");
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      if (code == null || state !== currentState) {
+        res.end(gateHtml("参数无效", "请关闭此窗口并在 xDesign 中重新登录。"));
+        return;
+      }
+      void handleCallback(code).then((result) => res.end(gateHtml(result.title, result.body)));
+    });
+    server.on("error", (error: unknown) => {
+      reject(
+        new Error(
+          `Feishu admission gate failed to bind the loopback callback on port ${FEISHU_LOOPBACK_PORT}: ${explainError(error)}`,
+        ),
+      );
     });
 
-    // OS fallback: if the redirect escapes to the system (Feishu in the user's
-    // browser), macOS delivers it via open-url and Windows via second-instance.
-    const onOpenUrl = (_e: unknown, url: string): void => {
-      if (isCallback(url)) void handleCallback(url);
-    };
-    const onSecondInstance = (_e: unknown, argv: string[]): void => {
-      const url = argv.find((a) => a.startsWith(FEISHU_CALLBACK_PREFIX));
-      if (url != null) void handleCallback(url);
-    };
-    app.on("open-url", onOpenUrl);
-    app.on("second-instance", onSecondInstance);
+    void server.listen(FEISHU_LOOPBACK_PORT, "127.0.0.1");
+    loadAuthorize();
 
     gate.on("closed", () => {
-      app.removeListener("open-url", onOpenUrl);
-      app.removeListener("second-instance", onSecondInstance);
+      server.close();
       deps.splashWindow?.show();
       // If the gate closed without admitting (user gave up), reject so the boot
       // aborts rather than booting the workspace unauthenticated.
       if (!admitted) reject(new Error("Feishu admission gate closed without login"));
     });
   });
-}
-
-function parseCallback(url: string): { code: string; state: string } | null {
-  try {
-    const q = url.indexOf("?");
-    if (q < 0) return null;
-    const params = new URLSearchParams(url.slice(q + 1));
-    const code = params.get("code");
-    const state = params.get("state");
-    if (code == null || state == null) return null;
-    return { code, state };
-  } catch {
-    return null;
-  }
 }
 
 function explainError(error: unknown): string {
@@ -210,16 +209,17 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function renderErrorPage(title: string, body: string): string {
-  return (
-    "data:text/html;charset=utf-8,"
-    + encodeURIComponent(
-      `<!doctype html><meta charset="utf-8"><title>xDesign · 飞书登录</title>
+/** The gate-window info/error page (raw HTML, served both as a data: URL for the
+ *  Electron window and as the loopback-server response body). */
+function gateHtml(title: string, body: string): string {
+  return `<!doctype html><meta charset="utf-8"><title>xDesign · 飞书登录</title>
 <style>body{font:14px/1.6 -apple-system,sans-serif;margin:0;padding:48px 32px;color:#353535;text-align:center}
 h1{font-size:18px;margin:0 0 12px}</style>
-<h1>${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p>`,
-    )
-  );
+<h1>${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p>`;
+}
+
+function renderErrorPage(title: string, body: string): string {
+  return "data:text/html;charset=utf-8," + encodeURIComponent(gateHtml(title, body));
 }
 
 /**
