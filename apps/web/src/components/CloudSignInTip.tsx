@@ -86,7 +86,7 @@ export function RailAccountSyncTip() {
 }
 
 /**
- * The signed-out rail's bottom callout (#5517 "Open Design Cloud 版" card).
+ * The signed-out rail's bottom callout (#5517 "xDesign Cloud 版" card).
  * The demo's card jumps to a mock sign-in; the product card IS the sign-in:
  * clicking it kicks off the same vela device-auth flow the onboarding/AMR
  * pill uses — pending state with a spinner + cancel + the manual activation
