@@ -95,6 +95,15 @@ export type ToolPackConfig = {
   silent: boolean;
   signed: boolean;
   amrProfile?: ToolPackAmrProfile;
+  /**
+   * Feishu admission-gate config (xDesign fork). When `feishuAdmission` is true
+   * and `feishu` is present, the packaged app boots a Feishu OAuth login wall
+   * before the main window; daemon localhost trust is unchanged. Absent for
+   * upstream/non-Feishu builds. See `resolveToolPackFeishu`.
+   */
+  feishu?: ToolPackFeishuConfig;
+  /** Enables the Feishu app-level admission gate (OD_FEISHU_ADMISSION=true). */
+  feishuAdmission?: boolean;
   telemetryRelayUrl?: string;
   /**
    * PostHog product-analytics ingest key, sourced from process.env.POSTHOG_KEY
@@ -254,6 +263,63 @@ function resolveToolPackVelaWebUrl(value: string | undefined): string | undefine
   return normalized.replace(/\/+$/, "");
 }
 
+/**
+ * Feishu (Lark) OAuth config for the xDesign fork's app-level admission gate.
+ * Sourced from OD_FEISHU_APP_ID / OD_FEISHU_APP_SECRET / OD_FEISHU_TENANT_ID /
+ * OD_FEISHU_BASE_URL at packaging time and baked into open-design-config.json;
+ * the packaged Electron main reads them to run the OAuth login wall. Absent for
+ * upstream/non-Feishu builds. The three credentials are all-or-nothing: setting
+ * only some is a misconfiguration that fails the build rather than shipping a
+ * half-broken gate.
+ */
+export type ToolPackFeishuConfig = {
+  appId: string;
+  appSecret: string;
+  tenantId: string;
+  baseUrl: string;
+};
+
+const FEISHU_DEFAULT_BASE_URL = "https://open.feishu.cn";
+
+function resolveFeishuCredential(value: string | undefined, envName: string): string | undefined {
+  if (value == null) return undefined;
+  const normalized = value.trim();
+  if (normalized.length === 0) return undefined;
+  if (/[\s\x00-\x1f]/.test(normalized)) {
+    throw new Error(`${envName} contains whitespace or control chars`);
+  }
+  return normalized;
+}
+
+function resolveFeishuBaseUrl(value: string | undefined): string {
+  if (value == null || value.trim().length === 0) return FEISHU_DEFAULT_BASE_URL;
+  const normalized = value.trim().replace(/\/+$/, "");
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error(`OD_FEISHU_BASE_URL must be an absolute URL: ${value}`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`OD_FEISHU_BASE_URL must be http(s): ${value}`);
+  }
+  return normalized;
+}
+
+export function resolveToolPackFeishu(env: NodeJS.ProcessEnv): ToolPackFeishuConfig | undefined {
+  const appId = resolveFeishuCredential(env.OD_FEISHU_APP_ID, "OD_FEISHU_APP_ID");
+  const appSecret = resolveFeishuCredential(env.OD_FEISHU_APP_SECRET, "OD_FEISHU_APP_SECRET");
+  const tenantId = resolveFeishuCredential(env.OD_FEISHU_TENANT_ID, "OD_FEISHU_TENANT_ID");
+  const anySet = appId != null || appSecret != null || tenantId != null;
+  if (!anySet) return undefined;
+  if (appId == null || appSecret == null || tenantId == null) {
+    throw new Error(
+      "tools-pack: OD_FEISHU_APP_ID / OD_FEISHU_APP_SECRET / OD_FEISHU_TENANT_ID must all be set together",
+    );
+  }
+  return { appId, appSecret, tenantId, baseUrl: resolveFeishuBaseUrl(env.OD_FEISHU_BASE_URL) };
+}
+
 function resolveToolPackPosthogCliApiKey(value: string | undefined): string | undefined {
   if (value == null) return undefined;
   const normalized = value.trim();
@@ -402,6 +468,8 @@ export function resolveToolPackConfig(
     silent: options.silent !== false,
     signed: options.signed === true,
     amrProfile: resolveToolPackAmrProfile(process.env.OPEN_DESIGN_AMR_PROFILE),
+    feishu: resolveToolPackFeishu(process.env),
+    feishuAdmission: process.env.OD_FEISHU_ADMISSION === "true",
     telemetryRelayUrl: resolveToolPackTelemetryRelayUrl(process.env.OPEN_DESIGN_TELEMETRY_RELAY_URL),
     updateMetadataUrl: resolveToolPackUpdateMetadataUrl(process.env.OD_UPDATE_METADATA_URL),
     posthogKey: resolveToolPackPosthogKey(process.env.POSTHOG_KEY),

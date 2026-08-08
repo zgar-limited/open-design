@@ -30,6 +30,11 @@ const PUBLISHABLE_HOSTS = new Set([
   "github.com",
   "open-design.ai",
   "us.i.posthog.com",
+  // Feishu / Lark public open-API hosts (xDesign fork admission gate). These
+  // are public third-party API endpoints (OAuth + user info), not a private
+  // backend — safe to publish as the default baseUrl.
+  "open.feishu.cn",
+  "open.larksuite.com",
 ]);
 
 const URL_LITERAL_PATTERN = /https?:\/\/([A-Za-z0-9._-]+)/g;

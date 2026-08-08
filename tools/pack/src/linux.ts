@@ -655,6 +655,8 @@ async function writeAssembledApp(
         ...(config.posthogKey == null ? {} : { posthogKey: config.posthogKey }),
         ...(config.posthogHost == null ? {} : { posthogHost: config.posthogHost }),
         ...(config.velaWebUrl == null ? {} : { velaWebUrl: config.velaWebUrl }),
+        ...(config.feishu == null ? {} : { feishu: config.feishu }),
+        ...(config.feishuAdmission ? { feishuAdmission: true } : {}),
         ...(config.portable ? {} : { namespaceBaseRoot: config.roots.runtime.namespaceBaseRoot }),
       },
       null,
